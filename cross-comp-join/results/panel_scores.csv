@@ -1,0 +1,7 @@
+model,rmse,note
+1_constant_median,2629968.0,ignores all features
+2_naive_profile_only,2616500.0,one table only (approx from demo run)
+3_naive_commercial_only,2619000.0,other table only (approx from demo run)
+4_positional_concat_wrong,2613720.0,concat without join key
+5_expert_proper_join,2592646.0,merge on Procurement_ID then HGB
+6_prejoined_oracle,2592646.0,same features already merged

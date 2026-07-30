@@ -1,0 +1,16 @@
+id: procurement-tender-final-price
+name: Procurement Tender Final Price
+competition_type: simple
+awards_medals: true
+prizes: null
+description: mlebench/competitions/procurement-tender-final-price/description.md
+
+dataset:
+  answers: procurement-tender-final-price/prepared/private/test.csv
+  sample_submission: procurement-tender-final-price/prepared/public/sample_submission.csv
+
+grader:
+  name: rmse
+  grade_fn: mlebench.competitions.procurement-tender-final-price.grade:grade
+
+preparer: mlebench.competitions.procurement-tender-final-price.prepare:prepare

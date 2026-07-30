@@ -1,0 +1,26 @@
+{
+  "task": "cross_comp_join_bid_tenders",
+  "style": "TRUE DATA MERGE (not min of two contests)",
+  "sources": [
+    "bid-2-save-savings-prediction-challenge",
+    "bid-2-win-tender-outcome-prediction-challenge"
+  ],
+  "join_key": "Procurement_ID",
+  "overlap_train_ids": 1546,
+  "target": "Final_Price_EUR",
+  "metric": "RMSE (single, lower better)",
+  "sklearn_panel_summary": {
+    "constant_median": 2629968.0,
+    "positional_concat_wrong": 2613720.0,
+    "expert_proper_join": 2592646.0,
+    "prejoined_oracle": 2592646.0
+  },
+  "key_finding": "Expert join ties pre-joined oracle; naive one-table and bad concat are worse. Hardness = join, not exotic modeling.",
+  "gpt_qwen_panel": {
+    "status": "PENDING",
+    "before_variant": "baseline_prejoined",
+    "after_variant": "two_table_hardened",
+    "models": ["gpt-5.5 (frontier)", "qwen / ancilla (weak)"],
+    "success_criteria": "After hardening: weak fails more often; GPT remains near expert gold; score spread widens."
+  }
+}

@@ -1,0 +1,25 @@
+# Never commit competition data or secrets
+**/.env
+**/.env.*
+**/secrets*
+**/*api*key*
+**/raw/
+**/prepared/
+**/output/
+**/data/
+**/unzipped/
+**/public/
+**/private/
+**/baseline_prejoined/
+**/__pycache__/
+**/.DS_Store
+**/*.parquet
+**/*.zip
+**/kaggle.json
+**/train.csv
+**/test.csv
+**/sample_submission.csv
+**/tenders_*.csv
+**/answers.csv
+.venv/
+venv/
