@@ -2,7 +2,7 @@
 
 Hardening MLE-Bench Kaggle tasks to fix score saturation and restore model-capability discrimination (Difficulty 2/3).
 
-## Workstream
+## Workstreams
 
 | Folder | What |
 |--------|------|
