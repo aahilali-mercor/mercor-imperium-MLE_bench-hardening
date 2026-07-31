@@ -1,0 +1,257 @@
+#!/usr/bin/env python3
+"""Package the team_harden batch-2 tasks in the same delivery format as the
+original 12: <slug>-hardened.zip with raw/ + task/{prepare.py, grade.py,
+description.md, config.yaml, HARDENING.md, leaderboard.csv}.
+
+Masking tasks (8): generated prepare.py = original prepare + column drop.
+Verification: private answers must equal the original build; public files must
+match the team's own perturbed_dataset.zip (byte-equal, else value-equal).
+
+Cross-comp tasks (2): already raw/+task/; renamed to -hardened, HARDENING.md
+added, verified by running prepare from raw and loading the grader.
+"""
+from __future__ import annotations
+
+import hashlib
+import io
+import json
+import re
+import shutil
+import subprocess
+import sys
+import zipfile
+from pathlib import Path
+
+import pandas as pd
+
+BASE = Path("/scratch/mle_hardening")
+TEAM = BASE / "team_harden"
+WORK = BASE / "team_work"
+OUT = BASE / "delivery_team"
+
+MASK_SPECS = {
+    "rnd-42-welcome": ["N_79", "N_80", "N_34", "N_31", "N_77", "N_24", "C_4", "N_26"],
+    "syzygy-equinox": ["koi_score", "koi_fpflag_nt", "koi_fpflag_co",
+                       "koi_fpflag_ss", "koi_fpflag_ec"],
+    "jan-30-22stellar": ["redshift"],
+    "itmo-flat-price-prediction-2024": ["total_area"],
+    "introml-2020-property-prices": ["area"],
+    "forest-cover-type-kernels-only": ["Elevation", "Wilderness_Area4"],
+    "icip-act-2025-spring-classification": ["bigram_type", "word_log_meanFre",
+                                            "word_token", "sen_svar", "word_type"],
+    "tss24-competition-3": ["height(cm)", "hemoglobin", "triglyceride",
+                            "Gtp", "weight(kg)"],
+}
+CROSS_SPECS = ["property-order-dual", "drivetrain-vibration-fault"]
+
+HARDEN_TEMPLATE = '''
+
+# ---------------------------------------------------------------------------
+# Hardening: mask the dominant screened predictors from the public files.
+_DROP_COLUMNS = {drop_cols!r}
+
+
+def _drop_columns(public):
+    import pandas as _pd
+    from pathlib import Path as _Path
+    for _name in ("train.csv", "test.csv"):
+        _fp = _Path(public) / _name
+        if not _fp.exists():
+            continue
+        _df = _pd.read_csv(_fp)
+        _present = [c for c in _DROP_COLUMNS if c in _df.columns]
+        _df.drop(columns=_present).to_csv(_fp, index=False)
+
+
+def prepare(raw, public, private):
+    """Hardened variant: base preparation + masking of dominant predictors."""
+    _prepare_base(raw, public, private)
+    _drop_columns(public)
+'''
+
+
+def sha(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def run_prepare(pkg_task: Path, raw: Path, pub: Path, priv: Path) -> None:
+    for d in (pub, priv):
+        shutil.rmtree(d, ignore_errors=True)
+        d.mkdir(parents=True)
+    code = (
+        "import sys; sys.path.insert(0, %r)\n"
+        "import importlib.util as iu\n"
+        "spec = iu.spec_from_file_location('prep', %r)\n"
+        "m = iu.module_from_spec(spec); spec.loader.exec_module(m)\n"
+        "from pathlib import Path\n"
+        "m.prepare(Path(%r), Path(%r), Path(%r))\n"
+    ) % (str(pkg_task), str(pkg_task / "prepare.py"), str(raw), str(pub), str(priv))
+    subprocess.run([sys.executable, "-c", code], check=True,
+                   capture_output=True, text=True)
+
+
+def patch_read_csv(src: str) -> str:
+    return src.replace("from mlebench.utils import read_csv",
+                       "import pandas as pd\nread_csv = pd.read_csv")
+
+
+def compare_dirs(a: Path, b: Path) -> list[str]:
+    """byte-compare files (value-compare CSV fallback); return mismatch notes."""
+    notes = []
+    fa = {p.name: p for p in a.rglob("*") if p.is_file()}
+    fb = {p.name: p for p in b.rglob("*") if p.is_file()}
+    if set(fa) != set(fb):
+        notes.append(f"file sets differ: {sorted(set(fa) ^ set(fb))}")
+        return notes
+    for name, pa in fa.items():
+        pb = fb[name]
+        if sha(pa) == sha(pb):
+            continue
+        if name.endswith(".csv"):
+            da, db = pd.read_csv(pa), pd.read_csv(pb)
+            if list(da.columns) == list(db.columns) and da.shape == db.shape:
+                try:
+                    pd.testing.assert_frame_equal(da, db, check_exact=False,
+                                                  rtol=0, atol=1e-12)
+                    notes.append(f"{name}: value-equal (formatting differs)")
+                    continue
+                except AssertionError:
+                    pass
+        notes.append(f"{name}: MISMATCH")
+    return notes
+
+
+def scrub_description(text: str, drops: list[str]) -> tuple[str, list[str]]:
+    """Remove bullet lines that only document dropped columns; report leftovers."""
+    kept, leftovers = [], []
+    for line in text.splitlines():
+        tokens = re.findall(r"`([^`]+)`", line)
+        hit = [t for t in tokens if t in drops]
+        if hit and line.lstrip().startswith(("-", "*")):
+            col_tokens = [t for t in tokens if re.match(r"^[\w()\- .]+$", t)]
+            if col_tokens and all(t in drops for t in col_tokens):
+                continue  # bullet documents only dropped columns — remove it
+        if hit:
+            leftovers.append(line.strip()[:110])
+        kept.append(line)
+    out = "\n".join(kept)
+    for d in drops:  # mentions outside backticks
+        for m in re.finditer(rf"(?<!`){re.escape(d)}(?!`)", out):
+            ctx = out[max(0, m.start() - 40):m.end() + 40].replace("\n", " ")
+            leftovers.append(f"prose: …{ctx}…")
+    return out, leftovers
+
+
+def build_mask_task(slug: str) -> dict:
+    drops = MASK_SPECS[slug]
+    src_dir = TEAM / "synthetic-hardening" / slug
+    work = WORK / slug
+    shutil.rmtree(work, ignore_errors=True)
+    work.mkdir(parents=True)
+    with zipfile.ZipFile(src_dir / "before" / "original_task.zip") as z:
+        z.extractall(work / "orig")
+    orig_pkg = work / "orig" / slug
+    assert orig_pkg.is_dir(), f"unexpected zip layout for {slug}"
+
+    dest = OUT / f"{slug}-hardened"
+    shutil.rmtree(dest, ignore_errors=True)
+    (dest / "task").mkdir(parents=True)
+    shutil.copytree(orig_pkg / "raw", dest / "raw")
+
+    # task files
+    for f in ("config.yaml", "grade.py", "leaderboard.csv"):
+        if (orig_pkg / "task" / f).exists():
+            shutil.copy2(orig_pkg / "task" / f, dest / "task" / f)
+    prep_src = patch_read_csv((orig_pkg / "task" / "prepare.py").read_text())
+    assert "def prepare(" in prep_src, slug
+    prep_out = prep_src.replace("def prepare(", "def _prepare_base(", 1)
+    prep_out += HARDEN_TEMPLATE.format(drop_cols=drops)
+    (dest / "task" / "prepare.py").write_text(prep_out)
+
+    desc, leftovers = scrub_description(
+        (orig_pkg / "task" / "description.md").read_text(), drops)
+    (dest / "task" / "description.md").write_text(desc)
+    shutil.copy2(src_dir / "BEFORE_AFTER.md", dest / "task" / "HARDENING.md")
+
+    # --- verification ---
+    v = work / "verify"
+    run_prepare(dest / "task", dest / "raw", v / "pub", v / "priv")
+    run_prepare(orig_pkg / "task", orig_pkg / "raw", v / "pub0", v / "priv0")
+    priv_notes = compare_dirs(v / "priv", v / "priv0")
+    with zipfile.ZipFile(src_dir / "after" / "perturbed_dataset.zip") as z:
+        z.extractall(v / "team_pub")
+    pub_notes = compare_dirs(v / "pub", v / "team_pub")
+
+    # confirm the drop actually happened
+    tr = pd.read_csv(v / "pub" / "train.csv", nrows=5)
+    still = [c for c in drops if c in tr.columns]
+    assert not still, f"{slug}: columns not dropped: {still}"
+
+    ok = not any("MISMATCH" in n or "differ" in n for n in priv_notes + pub_notes)
+    if ok:
+        zip_path = OUT / f"{slug}-hardened.zip"
+        zip_path.unlink(missing_ok=True)
+        subprocess.run(["zip", "-qr", str(zip_path), f"{slug}-hardened"],
+                       cwd=OUT, check=True)
+    return {"slug": slug, "ok": ok, "priv": priv_notes, "pub": pub_notes,
+            "desc_leftovers": leftovers}
+
+
+def build_cross_task(slug: str) -> dict:
+    src_dir = TEAM / "cross-comp" / slug
+    work = WORK / slug
+    shutil.rmtree(work, ignore_errors=True)
+    work.mkdir(parents=True)
+    with zipfile.ZipFile(src_dir / "after" / f"{slug}.zip") as z:
+        z.extractall(work / "pkg")
+    pkg = work / "pkg" / slug
+    assert pkg.is_dir(), f"unexpected zip layout for {slug}"
+
+    dest = OUT / f"{slug}-hardened"
+    shutil.rmtree(dest, ignore_errors=True)
+    dest.mkdir(parents=True)
+    shutil.copytree(pkg / "raw", dest / "raw")
+    shutil.copytree(pkg / "task", dest / "task")
+    prep = patch_read_csv((dest / "task" / "prepare.py").read_text())
+    (dest / "task" / "prepare.py").write_text(prep)
+    shutil.copy2(src_dir / "BEFORE_AFTER.md", dest / "task" / "HARDENING.md")
+
+    v = work / "verify"
+    run_prepare(dest / "task", dest / "raw", v / "pub", v / "priv")
+    pub_files = sorted(p.name for p in (v / "pub").rglob("*") if p.is_file())
+    priv_files = sorted(p.name for p in (v / "priv").rglob("*") if p.is_file())
+    code = ("import importlib.util as iu\n"
+            "spec = iu.spec_from_file_location('g', %r)\n"
+            "m = iu.module_from_spec(spec); spec.loader.exec_module(m)\n"
+            "assert callable(m.grade)\n") % str(dest / "task" / "grade.py")
+    subprocess.run([sys.executable, "-c", code], check=True,
+                   capture_output=True, text=True)
+    ok = bool(pub_files) and bool(priv_files)
+    if ok:
+        zip_path = OUT / f"{slug}-hardened.zip"
+        zip_path.unlink(missing_ok=True)
+        subprocess.run(["zip", "-qr", str(zip_path), f"{slug}-hardened"],
+                       cwd=OUT, check=True)
+    return {"slug": slug, "ok": ok, "pub_files": pub_files,
+            "priv_files": priv_files}
+
+
+def main() -> None:
+    OUT.mkdir(exist_ok=True)
+    report = []
+    for slug in list(MASK_SPECS) + CROSS_SPECS:
+        try:
+            r = (build_mask_task if slug in MASK_SPECS else build_cross_task)(slug)
+        except subprocess.CalledProcessError as e:
+            r = {"slug": slug, "ok": False,
+                 "error": (e.stderr or str(e))[-1200:]}
+        except Exception as e:
+            r = {"slug": slug, "ok": False, "error": f"{type(e).__name__}: {e}"}
+        report.append(r)
+        print(f"{'OK  ' if r['ok'] else 'FAIL'} {slug}", flush=True)
+    (BASE / "team_delivery_report.json").write_text(json.dumps(report, indent=2))
+    print(f"done: {sum(r['ok'] for r in report)}/{len(report)} packaged")
+
+
+if __name__ == "__main__":
+    main()

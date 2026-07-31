@@ -1,0 +1,47 @@
+snapshot_date = "2026-07-14"
+
+[kaggle]
+release = "v170"
+release_tag = "v170-GPU-bdf9e0538555f90453619adefb49ba40cfa136db44a9c9be7a42ea715c0aa068"
+variant = "GPU"
+published_at = "2026-06-29T18:19:28Z"
+git_commit = "fc61d5cda7da39530055bae9bd0e92865f995cd9"
+image = "gcr.io/kaggle-gpu-images/python:v170"
+image_digest = "sha256:bdf9e0538555f90453619adefb49ba40cfa136db44a9c9be7a42ea715c0aa068"
+requirements_url = "https://raw.githubusercontent.com/Kaggle/docker-python/fc61d5cda7da39530055bae9bd0e92865f995cd9/kaggle_requirements.txt"
+policy = "Feature baseline only; do not inherit the Colab base image or its complete dependency graph."
+
+[pypi_default_probe]
+command = "python -m pip install --dry-run --ignore-installed torch torchvision"
+index = "https://pypi.org/simple"
+python = "3.11"
+torch = "2.13.0"
+torchvision = "0.28.0"
+cuda_toolkit = "13.0.3"
+probe_date = "2026-07-14"
+
+[nvidia_dali]
+distribution = "nvidia-dali-cuda130"
+version = "2.2.0"
+index = "https://pypi.org/simple"
+support_matrix = "https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/support_matrix.html"
+probe_date = "2026-07-14"
+
+[reconciliation]
+resolver = "uv 0.11.6"
+locked_package_count = 290
+included = [
+  "Kaggle's broadly useful numerical, tabular, plotting, optimization, PyTorch, and image packages",
+  "the current default PyPI torch and torchvision pair",
+  "ONNX and ONNX Script export support for the current PyTorch exporter",
+  "CUDA 13 NVIDIA DALI",
+  "streaming and large-image storage packages",
+  "medical, geospatial, and whole-slide image readers",
+]
+excluded = [
+  "notebook UI and hosted-cloud integration packages",
+  "TensorFlow and JAX duplicate GPU runtimes",
+  "RAPIDS packages tied to a separate CUDA release train",
+  "TPU-only packages",
+  "task-irrelevant Google Cloud SDKs",
+]

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "status": {"type": "string", "enum": ["success", "no_viable_improvement"]},
+    "summary": {"type": "string", "minLength": 1},
+    "candidate_path": {"type": ["string", "null"]},
+    "readme_path": {"type": ["string", "null"]},
+    "evidence_path": {"type": "string", "minLength": 1}
+  },
+  "required": ["status", "summary", "candidate_path", "readme_path", "evidence_path"]
+}

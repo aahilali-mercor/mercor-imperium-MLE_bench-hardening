@@ -1,0 +1,120 @@
+[project]
+name = "imperium-mlebench-runtime"
+version = "0.1.0"
+description = "Reproducible offline runtime for Imperium MLEbench task generation and evaluation"
+requires-python = "==3.11.*"
+dependencies = [
+  # Numerical, tabular, plotting, and optimization baseline.
+  "bottleneck",
+  "catboost",
+  "category-encoders",
+  "dask[dataframe]",
+  "distributed",
+  "imbalanced-learn",
+  "joblib",
+  "lightgbm",
+  "matplotlib",
+  "numba",
+  "numexpr",
+  "numpy",
+  "openpyxl",
+  "optuna",
+  "pandas",
+  "plotly",
+  "polars",
+  "pyarrow",
+  "pyxlsb",
+  "scikit-learn",
+  "scikit-optimize",
+  "scipy",
+  "seaborn",
+  "shap",
+  "statsmodels",
+  "tables",
+  "tqdm",
+  "xgboost",
+
+  # Current normal-PyPI PyTorch pair, deliberately not a legacy cu12 index.
+  "torch==2.13.0",
+  "torchvision==0.28.0",
+  "accelerate",
+  "datasets",
+  "einops",
+  "fastai",
+  "open-clip-torch",
+  "pytorch-ignite",
+  "pytorch-lightning",
+  "safetensors",
+  "sentence-transformers",
+  "timm",
+  "torchinfo",
+  "torchmetrics",
+  "transformers",
+
+  # General image decoding, augmentation, annotation, and modeling.
+  "albumentations",
+  "easyocr",
+  "faiss-cpu",
+  "imagehash",
+  "imagecodecs",
+  "imageio",
+  "imageio-ffmpeg",
+  "kornia",
+  "opencv-python-headless",
+  "onnx",
+  "onnxscript",
+  "onnxruntime",
+  "pillow",
+  "pillow-heif",
+  "pycocotools",
+  "pytesseract",
+  "pywavelets",
+  "scikit-image",
+  "segmentation-models-pytorch",
+  "shapely",
+  "tifffile",
+
+  # Large image datasets, streaming, and GPU decode.
+  "av",
+  "h5py",
+  "lmdb",
+  "nvidia-dali-cuda130==2.2.0",
+  "webdataset",
+  "xarray",
+  "zarr",
+
+  # Medical, geospatial, whole-slide, and unusually large image formats.
+  "monai",
+  "nibabel",
+  "openslide-bin",
+  "openslide-python",
+  "pydicom",
+  "pylibjpeg",
+  "pylibjpeg-libjpeg",
+  "pylibjpeg-openjpeg",
+  "pyvips",
+  "rasterio",
+  "rioxarray",
+  "simpleitk",
+]
+
+[dependency-groups]
+dev = [
+  "pip-audit",
+  "pytest",
+  "pytest-cov",
+  "ruff",
+]
+
+[tool.uv]
+package = false
+required-version = ">=0.11.6"
+resolution = "highest"
+exclude-newer = "2026-07-14T23:59:59Z"
+environments = [
+  "sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
